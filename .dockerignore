@@ -1,0 +1,5 @@
+target/*
+.github/
+*.md
+*.pdf
+*.png
