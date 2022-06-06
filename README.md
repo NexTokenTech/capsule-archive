@@ -47,13 +47,13 @@ The node-template CLI (in /bin/node-template-archive) is provided as an example 
 ```bash
 git clone https://github.com/NexTokenTech/capsule-archive.git
 # Set up the databases
-cd capsule-archive/bin/node-template-archive/
+cd capsule-archive/bin/capsule-archive/
 # Start the normal capsule node with `pruning` set to `archive`,Set the specified database storage path.
 RUST_BACKTRACE=1 ./capsule-node --pruning=archive -ldebug --dev --base-path ./my-chain-state/
 # build the capsule-archive node.
-cargo build --release --bin node-template-archive
+cargo build --release --bin capsule-archive
 # run the capsule-archive node.
-./target/release/node-template-archive -c ./bin/node-template-archive/archive.toml
+./target/release/capsule-archive -c ./bin/capsule-archive/archive.toml
 ```
 
 You can access the help dialog via `cargo run --release -- --help`. Note that `up` and `down` scripts are meant for convenience and are not meant to be complete. Look in the [wiki](https://github.com/paritytech/substrate-archive/wiki) for more information about the database setup.
