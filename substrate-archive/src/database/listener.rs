@@ -42,6 +42,7 @@ pub struct Notif {
 	pub action: Action,
 	#[serde(deserialize_with = "deserialize_number_from_string")]
 	pub block_num: i32,
+	pub id: i32,
 }
 
 fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -78,17 +79,18 @@ pub enum Action {
 	Delete,
 }
 
+#[derive(Clone, Copy)]
 pub enum Channel {
 	/// Listen on the blocks table for new INSERTS
 	Blocks,
-	Trexes
+	Strategy,
 }
 
 impl From<&Channel> for String {
 	fn from(chan: &Channel) -> String {
 		match chan {
 			Channel::Blocks => "blocks_update".to_string(),
-			Channel::Trexes => "trex_update".to_string()
+			Channel::Strategy => "trex_update".to_string(),
 		}
 	}
 }

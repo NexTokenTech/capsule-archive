@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS trex (
      cipher bytea,
      account_id bytea[],
      trex_type TEXT NOT NULL,
-     release_block_num int check (release_block_num >= 0 and release_block_num < 2147483647),
+     release_number int check (release_number >= 0 and release_number < 2147483647),
      difficulty int,
      release_block_difficulty_index TEXT
 );

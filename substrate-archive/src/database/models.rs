@@ -156,7 +156,7 @@ impl ExtrinsicsModel {
 	}
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct TrexModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
@@ -165,7 +165,8 @@ pub struct TrexModel {
 	pub account_id: Option<Vec<Vec<u8>>>,
 	pub trex_type: String,
 	pub release_number: Option<u32>,
-	pub difficulty:u32
+	pub difficulty: u32,
+	pub release_block_difficulty_index: String,
 }
 
 impl TrexModel {
@@ -176,12 +177,29 @@ impl TrexModel {
 		account_id: Option<Vec<Vec<u8>>>,
 		trex_type: &str,
 		release_number: Option<u32>,
-		difficulty: u32
+		difficulty: u32,
+		release_block_difficulty_index: String,
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
 		let trex_type = trex_type.to_string();
-		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, trex_type, release_number, difficulty})
+		Ok(Self {
+			id: None,
+			hash: block_id,
+			number: block_num,
+			cipher,
+			account_id,
+			trex_type,
+			release_number,
+			difficulty,
+			release_block_difficulty_index,
+		})
+	}
+}
+
+impl TrexModel {
+	pub fn into_trex(self) -> Result<TrexModel, DecodeError> {
+		Ok(self)
 	}
 }
 

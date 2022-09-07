@@ -25,6 +25,21 @@ use crate::sync::Barrier;
 use crate::test_guard::TestGuard;
 
 #[test]
+fn test() -> Result<()> {
+	let barrier = Barrier::new(3);
+	let runner = TestGuard::runner(barrier.clone());
+	let handle = runner.handle();
+	let body = String::from("Send message from archiver to mq");
+	let payload = &body.as_bytes().clone().to_owned();
+	handle
+		.channel()
+		.basic_publish("", handle.name(), Default::default(), payload.to_owned(), Default::default())
+		.wait();
+	barrier.wait();
+	Ok(())
+}
+
+#[test]
 fn run_all_pending_jobs_returns_when_all_jobs_enqueued() -> Result<()> {
 	crate::initialize();
 	let barrier = Barrier::new(3);

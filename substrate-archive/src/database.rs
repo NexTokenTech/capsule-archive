@@ -483,7 +483,8 @@ impl Insert for Vec<TrexModel> {
 			batch.append(",");
 			batch.bind(trex.difficulty)?;
 			batch.append(",");
-			let release_block_difficulty_index = trex.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &trex.difficulty.to_string();
+			let release_block_difficulty_index =
+				trex.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &trex.difficulty.to_string();
 			batch.bind(release_block_difficulty_index)?;
 			batch.append(")");
 		}

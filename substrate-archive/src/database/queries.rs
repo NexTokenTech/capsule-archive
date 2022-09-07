@@ -23,7 +23,10 @@ use itertools::Itertools;
 use sqlx::PgConnection;
 use std::collections::HashMap;
 
-use crate::{database::models::BlockModel, error::Result};
+use crate::{
+	database::models::{BlockModel,TrexModel},
+	error::Result,
+};
 
 /// Return type of queries that `SELECT version`
 struct Version {
@@ -132,6 +135,22 @@ pub(crate) async fn get_full_block_by_number(conn: &mut sqlx::PgConnection, bloc
 	.await
 	.map_err(Into::into)
 }
+
+// TODO resolve bug for this query_as!
+// /// Get a trex by id from the relational database
+// pub(crate) async fn get_trex_by_id(conn: &mut sqlx::PgConnection, trex_id: i32) -> Result<TrexCpModel> {
+// 	sqlx::query_as!(
+// 		TrexModel,
+// 		"
+//         SELECT id, hash, number, cipher, account_id, trex_type, release_block_num, difficulty, release_block_difficulty_index
+//         FROM blocks
+//         WHERE block_num = $1
+//         "
+// 	)
+// 		.fetch_one(conn)
+// 		.await
+// 		.map_err(Into::into)
+// }
 
 /// Get metadata according to spec version.
 pub async fn metadata(conn: &mut PgConnection, spec: i32) -> Result<Vec<u8>> {

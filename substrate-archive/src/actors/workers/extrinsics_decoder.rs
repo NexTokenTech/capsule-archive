@@ -28,9 +28,9 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::TrexModel, models::ExtrinsicsModel, queries},
+	database::{models::ExtrinsicsModel, models::TrexModel, queries},
 	error::{ArchiveError, Result},
-	types::{BatchTrexes, BatchExtrinsics},
+	types::{BatchExtrinsics, BatchTrexes},
 };
 
 use serde::Deserialize;
@@ -62,10 +62,10 @@ struct CipherText(Vec<u8>);
 struct Ciphers(Vec<Cipher>);
 
 #[derive(Deserialize, Debug)]
-struct Cipher{
-	cipher_text:Vec<u8>,
-	difficulty:u32,
-	release_block_num:u32
+struct Cipher {
+	cipher_text: Vec<u8>,
+	difficulty: u32,
+	release_block_num: u32,
 }
 
 impl ExtrinsicsDecoder {
@@ -200,7 +200,8 @@ impl ExtrinsicsDecoder {
 							};
 
 							// get cipher_text from arguments[1]
-							let option_cipher_text_struct:Option<CipherText> = serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
+							let option_cipher_text_struct: Option<CipherText> =
+								serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
 							// get json string from matching chiper_text
 							let ciphers_json_str = match option_cipher_text_struct {
 								Some(cipher_text_struct) => {
@@ -208,29 +209,31 @@ impl ExtrinsicsDecoder {
 									let cipher_json_str_result = String::from_utf8(cipher_text_struct.0);
 									let cipher_json_str = match cipher_json_str_result {
 										Ok(ciphers_json) => ciphers_json,
-										Err(_) => "".to_string()
+										Err(_) => "".to_string(),
 									};
 									cipher_json_str
 								}
-								None => "".to_string()
+								None => "".to_string(),
 							};
 							// Deserialize to Ciphers struct
-							let option_ciphers:Option<Ciphers> = serde_json::from_str(&ciphers_json_str).unwrap_or(None);
+							let option_ciphers: Option<Ciphers> =
+								serde_json::from_str(&ciphers_json_str).unwrap_or(None);
 							// get Vec<Cipher> from Ciphers struct tuple's first object
 							let cipher_vector = match option_ciphers {
-								Some(ciphers_struct) => {
-									ciphers_struct.0
-								}
+								Some(ciphers_struct) => ciphers_struct.0,
 								None => {
 									vec![]
 								}
 							};
 
 							//Traverse the vector and construct the TrexModel
-							for cipher in cipher_vector{
+							for cipher in cipher_vector {
 								let cipher_text = cipher.cipher_text;
 								let release_block_number = cipher.release_block_num;
 								let difficulty = cipher.difficulty;
+								let release_block_difficulty_index =
+									cipher.release_block_num.to_string()
+										+ &"_".to_string() + &cipher.difficulty.to_string();
 
 								let trex_model_result = TrexModel::new(
 									hash.to_vec(),
@@ -239,7 +242,8 @@ impl ExtrinsicsDecoder {
 									account_id.to_owned(),
 									&pallet_name,
 									Option::from(release_block_number),
-									difficulty
+									difficulty,
+									release_block_difficulty_index,
 								);
 								match trex_model_result {
 									Ok(trex_model) => {

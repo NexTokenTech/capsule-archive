@@ -17,18 +17,15 @@
 //! Custom Read-Only Database Instance using RocksDB Secondary features.
 //! Will try catching up with primary database on every `get()`.
 
-use std::{collections::HashMap, fmt, io, path::PathBuf};
 use std::thread::sleep;
+use std::{collections::HashMap, fmt, io, path::PathBuf};
 
 use kvdb::KeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 
 use sp_database::{ColumnId, Database as DatabaseTrait, Transaction};
 
-use crate::util::{
-	columns::META,
-	meta_keys::GENESIS_HASH
-};
+use crate::util::{columns::META, meta_keys::GENESIS_HASH};
 
 const NUM_COLUMNS: u32 = 11;
 
@@ -73,11 +70,11 @@ impl SecondaryRocksDb {
 				Some(_) => {
 					log::debug!("Failed to get genesis_hash,retry...");
 					true
-				},
+				}
 				None => {
 					log::debug!("Get genesis_hash successfully,next!!!");
 					false
-				},
+				}
 			};
 
 			value
