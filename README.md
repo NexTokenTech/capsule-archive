@@ -1,7 +1,7 @@
 <div align="center">
 
-# Trex Archive
-### (Fork from Substrate Archive)
+# TREX Archive - the TREX blockchain index engine for dTRE data
+This is a blockchain indexing engine to support decentralized timed-release encrpytion (dTRE) technology and its applications. This software works alongside with a TREX node to disassembly block data, classify dTRE data and send it to a message broker (rabbitMQ). The message broker can distribute the dTRE data to other microservices so that the dTRE data can be processed for specific applications.
 
 ### Blockchain Indexing Engine
 
