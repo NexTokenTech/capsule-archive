@@ -21,6 +21,7 @@ use std::{collections::HashMap, sync::Arc};
 use xtra::prelude::*;
 
 use desub::Decoder;
+use log::info;
 use serde_json::Value;
 
 use crate::{
@@ -34,6 +35,11 @@ use crate::{
 };
 
 use serde::Deserialize;
+use sa_work_queue::{Runner,BackgroundJob};
+
+pub static TASK_QUEUE_EXT: &str = "SA_QUEUE_EXT";
+pub static AMQP_URL_EXT: &str = "amqp://localhost:5672";
+pub static EXT_JOB_TYPE: &str = "Strategy_job";
 
 /// Actor which crawls missing encoded extrinsics and
 /// sends decoded JSON to the database.
@@ -49,7 +55,7 @@ pub struct ExtrinsicsDecoder {
 	decoder: Arc<Decoder>,
 	/// Cache of blocks where runtime upgrades occurred.
 	/// number -> spec
-	upgrades: ArcSwap<HashMap<u32, u32>>,
+	upgrades: ArcSwap<HashMap<u32, u32>>
 }
 
 #[derive(Deserialize, Debug)]
@@ -122,13 +128,42 @@ impl ExtrinsicsDecoder {
 			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
 
 		let extrinsics = extrinsics_tuple.0;
+		if &extrinsics.len() > &0 {
+			info!("I have one or more extrinsics");
+			self.publish_exts(&extrinsics);
+		}
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
 
 		//send batch trexes to DatabaseActor
 		let trexes = extrinsics_tuple.1;
 		self.addr.send(BatchTrexes::new(trexes)).await?;
 
+
 		Ok(())
+	}
+
+	fn publish_exts(&self,exts: &Vec<ExtrinsicsModel>){
+		let runner = Self::runner();
+		for ext in exts {
+			Self::create_job(&runner, ext);
+		}
+	}
+
+	fn create_job(runner: &Runner<()>, ext: &ExtrinsicsModel) {
+		let data = serde_json::to_string(ext).unwrap_or("".to_string());
+		let job = BackgroundJob { job_type: EXT_JOB_TYPE.into(), data: serde_json::from_str(&*data).unwrap() };
+		let handle = runner.handle();
+		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap()));
+	}
+
+	fn runner() -> Runner<()> {
+		Runner::builder((), AMQP_URL_EXT)
+			.num_threads(2)
+			.timeout(std::time::Duration::from_secs(5))
+			.queue_name(TASK_QUEUE_EXT)
+			.prefetch(1) // high prefetch values will screw tests up
+			.build()
+			.unwrap()
 	}
 
 	fn decode(

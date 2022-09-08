@@ -141,7 +141,7 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Serialize,Deserialize, FromRow)]
 pub struct ExtrinsicsModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
@@ -163,7 +163,7 @@ pub struct TrexModel {
 	pub number: u32,
 	pub cipher: Option<Vec<u8>>,
 	pub account_id: Option<Vec<Vec<u8>>>,
-	pub trex_type: String,
+	pub app_prefix: String,
 	pub release_number: Option<u32>,
 	pub difficulty: u32,
 	pub release_block_difficulty_index: String,
@@ -175,21 +175,21 @@ impl TrexModel {
 		block_num: u32,
 		cipher: Option<Vec<u8>>,
 		account_id: Option<Vec<Vec<u8>>>,
-		trex_type: &str,
+		app_prefix: &str,
 		release_number: Option<u32>,
 		difficulty: u32,
 		release_block_difficulty_index: String,
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let trex_type = trex_type.to_string();
+		let app_prefix = app_prefix.to_string();
 		Ok(Self {
 			id: None,
 			hash: block_id,
 			number: block_num,
 			cipher,
 			account_id,
-			trex_type,
+			app_prefix,
 			release_number,
 			difficulty,
 			release_block_difficulty_index,

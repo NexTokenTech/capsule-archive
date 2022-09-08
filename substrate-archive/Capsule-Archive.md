@@ -22,17 +22,17 @@ pub struct TrexModel{
 	pub number: u32,
 	pub cipher:Option<Vec<u8>>,
 	pub account_id:Option<Vec<Vec<u8>>>,
-	pub trex_type:String,
+	pub app_prefix:String,
 	pub release_number: Option<u32>
 }
 
 
 impl TrexModel {
-	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Option<Vec<u8>>, account_id:Option<Vec<Vec<u8>>>, trex_type:Vec<u8>, release_number:Option<u32>) -> Result<Self>{
+	pub fn new(block_id: Vec<u8>, block_num: u32, cipher: Option<Vec<u8>>, account_id:Option<Vec<Vec<u8>>>, app_prefix:Vec<u8>, release_number:Option<u32>) -> Result<Self>{
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let trex_type = String::from_utf8(trex_type).unwrap_or(String::from(""));
-		Ok(Self{id: None, hash:block_id, number:block_num,cipher,account_id,trex_type,release_number})
+		let app_prefix = String::from_utf8(app_prefix).unwrap_or(String::from(""));
+		Ok(Self{id: None, hash:block_id, number:block_num,cipher,account_id,app_prefix,release_number})
 	}
 }
 ```
@@ -99,7 +99,7 @@ impl Insert for Vec<TrexModel> {
 			"trexes",
 			r#"
 			INSERT INTO "trexes" (
-				hash, number, cipher, account_id, trex_type, release_number
+				hash, number, cipher, account_id, app_prefix, release_number
 			) VALUES
 			"#,
 			r#"
@@ -120,7 +120,7 @@ impl Insert for Vec<TrexModel> {
 			batch.append(",");
 			batch.bind(trex.account_id)?;
 			batch.append(",");
-			batch.bind(trex.trex_type)?;
+			batch.bind(trex.app_prefix)?;
 			batch.append(",");
 			batch.bind(trex.release_number)?;
 			batch.append(")");

@@ -83,14 +83,12 @@ pub enum Action {
 pub enum Channel {
 	/// Listen on the blocks table for new INSERTS
 	Blocks,
-	Strategy,
 }
 
 impl From<&Channel> for String {
 	fn from(chan: &Channel) -> String {
 		match chan {
 			Channel::Blocks => "blocks_update".to_string(),
-			Channel::Strategy => "trex_update".to_string(),
 		}
 	}
 }

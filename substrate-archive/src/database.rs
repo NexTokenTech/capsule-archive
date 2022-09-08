@@ -456,7 +456,7 @@ impl Insert for Vec<TrexModel> {
 			"trex",
 			r#"
 			INSERT INTO "trex" (
-				hash, number, cipher, account_id, trex_type, release_block_num, difficulty, release_block_difficulty_index
+				hash, number, cipher, account_id, app_prefix, release_block_num, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
 			r#"
@@ -477,7 +477,7 @@ impl Insert for Vec<TrexModel> {
 			batch.append(",");
 			batch.bind(trex.account_id)?;
 			batch.append(",");
-			batch.bind(trex.trex_type)?;
+			batch.bind(trex.app_prefix)?;
 			batch.append(",");
 			batch.bind(trex.release_number)?;
 			batch.append(",");

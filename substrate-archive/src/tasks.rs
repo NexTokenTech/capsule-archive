@@ -40,7 +40,6 @@ use crate::{
 	types::Storage,
 	wasm_tracing::{SpansAndEvents, TraceHandler, Traces},
 };
-use crate::database::TrexModel;
 
 /// The environment passed to each task
 pub struct Environment<B: Send + 'static, H: Send + Sync + 'static, R, C, D> {
@@ -292,7 +291,7 @@ where
 /// Execute a block, and send it to the database actor
 #[sa_work_queue::background_job]
 pub fn execute_trex(
-	trex: TrexModel
+	_body:String
 ) -> Result<(), sa_work_queue::PerformError>
 {
 	Ok(())

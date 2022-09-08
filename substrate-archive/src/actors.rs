@@ -59,7 +59,6 @@ use crate::{
 	error::Result,
 	tasks::Environment,
 };
-use crate::database::TrexModel;
 
 /// Provides parameters that are passed in from the user.
 /// Provides context that every actor may use
@@ -315,13 +314,10 @@ where
 		if self.config.control.storage_indexing {
 			let runner = self.start_queue(&actors, &persistent_config.task_queue)?;
 			let handle = runner.unique_handle()?;
-			let mut listener = self.init_listeners(handle.clone(), Channel::Blocks).await?;
-			// TODO:// need to replace QueueHandle with new queue name.
-			let mut stradegy_listener = self.init_listeners(handle.clone(), Channel::Strategy).await?;
+			let mut listener = self.init_listeners(handle.clone()).await?;
 			let task_loop = self.storage_index(runner, pool);
 			futures::try_join!(task_loop, actors_future)?;
 			listener.kill().await?;
-			stradegy_listener.kill().await?;
 		} else {
 			actors_future.await?
 		};
@@ -386,40 +382,17 @@ where
 		Ok(runner)
 	}
 
-	async fn init_listeners(&self, handle: QueueHandle, channel: Channel) -> Result<Listener> {
-		let chanel = channel.clone();
-		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| match channel {
-			Channel::Blocks => async move {
+	async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
+		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle|
+			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
 				crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.0, PhantomData).enqueue(handle).await?;
 				Ok(())
 			}
-			.boxed(),
-			Channel::Strategy => {
-				log::info!("Strategy table insert event");
-				// TODO
- 				async move {
-					let trex = TrexModel::new(
-						"1".as_bytes().to_vec(),
-						2,
-						Option::Some("first".as_bytes().to_vec()),
-						Option::Some(vec!["first".as_bytes().to_vec()]),
-						"test",
-						Option::Some(1000),
-						32,
-						"32_1000".to_string()
-					).unwrap();
-					crate::tasks::execute_trex(trex)
-						.enqueue(handle)
-						.await?;
-					Ok(())
-				}
 				.boxed()
-			}
-			_ => async move { Ok(()) }.boxed(),
-		})
-		.listen_on(chanel)
+		)
+		.listen_on(Channel::Blocks)
 		.spawn()
 		.await
 	}
