@@ -383,15 +383,15 @@ where
 	}
 
 	async fn init_listeners(&self, handle: QueueHandle) -> Result<Listener> {
-		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle|
+		Listener::builder(self.config.pg_url(), handle, move |notif, conn, handle| {
 			async move {
 				let sql_block = queries::get_full_block_by_number(conn, notif.block_num).await?;
 				let b = sql_block.into_block_and_spec()?;
 				crate::tasks::execute_block::<Block, Runtime, Client, Db>(b.0, PhantomData).enqueue(handle).await?;
 				Ok(())
 			}
-				.boxed()
-		)
+			.boxed()
+		})
 		.listen_on(Channel::Blocks)
 		.spawn()
 		.await

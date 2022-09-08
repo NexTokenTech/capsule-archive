@@ -34,8 +34,8 @@ use crate::{
 	types::{BatchExtrinsics, BatchTrexes},
 };
 
+use sa_work_queue::{BackgroundJob, Runner};
 use serde::Deserialize;
-use sa_work_queue::{Runner,BackgroundJob};
 
 pub static TASK_QUEUE_EXT: &str = "SA_QUEUE_EXT";
 pub static AMQP_URL_EXT: &str = "amqp://localhost:5672";
@@ -55,7 +55,7 @@ pub struct ExtrinsicsDecoder {
 	decoder: Arc<Decoder>,
 	/// Cache of blocks where runtime upgrades occurred.
 	/// number -> spec
-	upgrades: ArcSwap<HashMap<u32, u32>>
+	upgrades: ArcSwap<HashMap<u32, u32>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -138,11 +138,10 @@ impl ExtrinsicsDecoder {
 		let trexes = extrinsics_tuple.1;
 		self.addr.send(BatchTrexes::new(trexes)).await?;
 
-
 		Ok(())
 	}
 
-	fn publish_exts(&self,exts: &Vec<ExtrinsicsModel>){
+	fn publish_exts(&self, exts: &Vec<ExtrinsicsModel>) {
 		let runner = Self::runner();
 		for ext in exts {
 			Self::create_job(&runner, ext);

@@ -23,10 +23,7 @@ use itertools::Itertools;
 use sqlx::PgConnection;
 use std::collections::HashMap;
 
-use crate::{
-	database::models::BlockModel,
-	error::Result,
-};
+use crate::{database::models::BlockModel, error::Result};
 
 /// Return type of queries that `SELECT version`
 struct Version {
