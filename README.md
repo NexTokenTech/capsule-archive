@@ -99,7 +99,6 @@ For macOS and Linux, a warning message will be raised on the startup when there 
 ## Contact
 
 You can contact us at:
- - matrix: #substrate-archive:matrix.parity.io
- - email: andrew.plaza@parity.io
+ - email: team@trex.ink
 
 [contribution]: CONTRIBUTING.md
