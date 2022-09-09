@@ -42,7 +42,6 @@ pub struct Notif {
 	pub action: Action,
 	#[serde(deserialize_with = "deserialize_number_from_string")]
 	pub block_num: i32,
-	pub id: i32,
 }
 
 fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
