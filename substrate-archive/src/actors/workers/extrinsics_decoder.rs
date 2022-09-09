@@ -159,15 +159,40 @@ impl ExtrinsicsDecoder {
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)
 					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+				// let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
+				// extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+
+				match decoder.decode_extrinsics(*previous, ext.as_slice()) {
+					Ok(exts) => {
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					}
+					Err(err) => {
+						log::warn!(
+							"decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}",
+							number,
+							spec,
+							err
+						);
+					}
+				}
 
 				//construct capsule list for batch
 				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
 			} else {
-				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
-
+				// let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
+				// extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
+				match decoder.decode_extrinsics(spec, ext.as_slice()) {
+					Ok(exts) => {
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					}
+					Err(err) => {
+						log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+					}
+				}
 				//construct capsule list for batch
 				Self::construct_capsules(&number, &hash, &ext1, &mut capsules);
 			}
