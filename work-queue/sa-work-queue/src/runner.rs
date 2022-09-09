@@ -180,7 +180,7 @@ impl QueueHandle {
 	}
 
 	/// Push to the RabbitMQ
-	pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<PublisherConfirm, lapin::Error> {
+	pub async fn push(&self, payload: Vec<u8>) -> Result<PublisherConfirm, lapin::Error> {
 		let confirm = self
 			.channel
 			.basic_publish("", self.queue.name().as_str(), Default::default(), payload, Default::default())

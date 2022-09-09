@@ -10256,6 +10256,7 @@ dependencies = [
 name = "substrate-archive"
 version = "0.6.0"
 dependencies = [
+ "antidote",
  "anyhow",
  "arc-swap",
  "async-std",
@@ -10288,6 +10289,7 @@ dependencies = [
  "semver 1.0.4",
  "serde",
  "serde_json",
+ "smol",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
