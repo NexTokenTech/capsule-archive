@@ -193,17 +193,37 @@ impl ExtrinsicsDecoder {
 					.find(|(_curr, next)| *next >= version)
 					.map(|(c, _)| c)
 					.ok_or(ArchiveError::PrevSpecNotFound(*version))?;
-				let ext1 = decoder.decode_extrinsics(*previous, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
 
-				//construct trex list for batch
-				Self::construct_trexes(&number, &hash, &ext1, &mut trexes);
+				match decoder.decode_extrinsics(*previous, ext.as_slice()) {
+					Ok(exts) => {
+						//construct trex list for batch
+						Self::construct_trexes(&number, &hash, &exts, &mut trexes);
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					}
+					Err(err) => {
+						log::warn!(
+							"decode extrinsic upgrade failed, block: {}, spec: {}, reason: {:?}",
+							number,
+							spec,
+							err
+						);
+					}
+				}
 			} else {
-				let ext1 = decoder.decode_extrinsics(spec, ext.as_slice())?;
-				extrinsics.push(ExtrinsicsModel::new(hash.to_owned(), number, ext1.to_owned())?);
-
-				//construct trex list for batch
-				Self::construct_trexes(&number, &hash, &ext1, &mut trexes);
+				match decoder.decode_extrinsics(spec, ext.as_slice()) {
+					Ok(exts) => {
+						//construct trex list for batch
+						Self::construct_trexes(&number, &hash, &exts, &mut trexes);
+						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
+							extrinsics.push(exts_model);
+						}
+					}
+					Err(err) => {
+						log::warn!("decode extrinsic failed, block: {}, spec: {}, reason: {:?}", number, spec, err);
+					}
+				}
 			}
 		}
 		Ok((extrinsics, trexes))
