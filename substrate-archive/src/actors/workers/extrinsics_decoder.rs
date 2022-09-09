@@ -38,7 +38,6 @@ use sa_work_queue::{BackgroundJob, Runner};
 use serde::Deserialize;
 
 pub static TASK_QUEUE_EXT: &str = "SA_QUEUE_EXT";
-pub static AMQP_URL_EXT: &str = "amqp://localhost:5672";
 pub static EXT_JOB_TYPE: &str = "Strategy_job";
 
 /// Actor which crawls missing encoded extrinsics and
@@ -56,6 +55,8 @@ pub struct ExtrinsicsDecoder {
 	/// Cache of blocks where runtime upgrades occurred.
 	/// number -> spec
 	upgrades: ArcSwap<HashMap<u32, u32>>,
+	/// URL for RabbitMQ. Default is localhost:5672
+	task_url: String
 }
 
 #[derive(Deserialize, Debug)]
@@ -79,15 +80,16 @@ impl ExtrinsicsDecoder {
 		config: &SystemConfig<B, Db>,
 		addr: Address<DatabaseActor>,
 	) -> Result<Self> {
-		let max_block_load = config.control.max_block_load;
+		let max_block_load = config.clone().control.max_block_load;
 		let pool = addr.send(GetState::Pool).await??.pool();
+		let task_url = config.clone().control.task_url;
 		// let chain = config.persistent_config.chain();
 		// let decoder = Arc::new(Decoder::new(chain));
 		let decoder = Arc::new(Decoder::new());
 		let mut conn = pool.acquire().await?;
 		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
 		log::info!("Started extrinsic decoder");
-		Ok(Self { pool, addr, max_block_load, decoder, upgrades })
+		Ok(Self { pool, addr, max_block_load, decoder, upgrades, task_url})
 	}
 
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
@@ -142,7 +144,7 @@ impl ExtrinsicsDecoder {
 	}
 
 	fn publish_exts(&self, exts: &Vec<ExtrinsicsModel>) {
-		let runner = Self::runner();
+		let runner = Self::runner(self);
 		for ext in exts {
 			Self::create_job(&runner, ext);
 		}
@@ -155,8 +157,8 @@ impl ExtrinsicsDecoder {
 		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap()));
 	}
 
-	fn runner() -> Runner<()> {
-		Runner::builder((), AMQP_URL_EXT)
+	fn runner(&self) -> Runner<()> {
+		Runner::builder((), &self.task_url)
 			.num_threads(2)
 			.timeout(std::time::Duration::from_secs(5))
 			.queue_name(TASK_QUEUE_EXT)
