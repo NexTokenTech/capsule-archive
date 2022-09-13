@@ -157,7 +157,7 @@ impl ExtrinsicsModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
-pub struct TrexModel {
+pub struct BucketModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: u32,
@@ -169,7 +169,7 @@ pub struct TrexModel {
 	pub release_block_difficulty_index: String,
 }
 
-impl TrexModel {
+impl BucketModel {
 	pub fn new(
 		block_id: Vec<u8>,
 		block_num: u32,
@@ -197,8 +197,8 @@ impl TrexModel {
 	}
 }
 
-impl TrexModel {
-	pub fn into_trex(self) -> Result<TrexModel, DecodeError> {
+impl BucketModel {
+	pub fn into_bucket(self) -> Result<BucketModel, DecodeError> {
 		Ok(self)
 	}
 }

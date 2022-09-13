@@ -29,9 +29,9 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::ExtrinsicsModel, models::TrexModel, queries},
+	database::{models::ExtrinsicsModel, models::BucketModel, queries},
 	error::{ArchiveError, Result},
-	types::{BatchExtrinsics, BatchTrexes},
+	types::{BatchExtrinsics, BatchBuckets},
 };
 
 use sa_work_queue::{BackgroundJob, Runner};
@@ -136,9 +136,9 @@ impl ExtrinsicsDecoder {
 		}
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
 
-		//send batch trexes to DatabaseActor
-		let trexes = extrinsics_tuple.1;
-		self.addr.send(BatchTrexes::new(trexes)).await?;
+		//send batch buckets to DatabaseActor
+		let buckets = extrinsics_tuple.1;
+		self.addr.send(BatchBuckets::new(buckets)).await?;
 
 		Ok(())
 	}
@@ -154,7 +154,7 @@ impl ExtrinsicsDecoder {
 		let data = serde_json::to_string(ext).unwrap_or("".to_string());
 		let job = BackgroundJob { job_type: EXT_JOB_TYPE.into(), data: serde_json::from_str(&*data).unwrap() };
 		let handle = runner.handle();
-		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap()));
+		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap_or(Default::default())));
 	}
 
 	fn runner(&self) -> Runner<()> {
@@ -171,9 +171,9 @@ impl ExtrinsicsDecoder {
 		decoder: &Decoder,
 		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
 		upgrades: &HashMap<u32, u32>,
-	) -> Result<(Vec<ExtrinsicsModel>, Vec<TrexModel>)> {
+	) -> Result<(Vec<ExtrinsicsModel>, Vec<BucketModel>)> {
 		let mut extrinsics = Vec::new();
-		let mut trexes = Vec::new();
+		let mut buckets = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -198,8 +198,8 @@ impl ExtrinsicsDecoder {
 
 				match decoder.decode_extrinsics(*previous, ext.as_slice()) {
 					Ok(exts) => {
-						//construct trex list for batch
-						Self::construct_trexes(&number, &hash, &exts, &mut trexes);
+						//construct bucket list for batch
+						Self::construct_buckets(&number, &hash, &exts, &mut buckets);
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
@@ -216,8 +216,8 @@ impl ExtrinsicsDecoder {
 			} else {
 				match decoder.decode_extrinsics(spec, ext.as_slice()) {
 					Ok(exts) => {
-						//construct trex list for batch
-						Self::construct_trexes(&number, &hash, &exts, &mut trexes);
+						//construct bucket list for batch
+						Self::construct_buckets(&number, &hash, &exts, &mut buckets);
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
@@ -228,11 +228,11 @@ impl ExtrinsicsDecoder {
 				}
 			}
 		}
-		Ok((extrinsics, trexes))
+		Ok((extrinsics, buckets))
 	}
 
-	//construct trex list for batch
-	fn construct_trexes(number: &u32, hash: &Vec<u8>, ext: &Value, trexes: &mut Vec<TrexModel>) {
+	//construct bucket list for batch
+	fn construct_buckets(number: &u32, hash: &Vec<u8>, ext: &Value, buckets: &mut Vec<BucketModel>) {
 		if ext.is_array() {
 			let extrinsics = ext.as_array().unwrap();
 			for extrinsic in extrinsics {
@@ -282,7 +282,7 @@ impl ExtrinsicsDecoder {
 								}
 							};
 
-							//Traverse the vector and construct the TrexModel
+							//Traverse the vector and construct the BucketModel
 							for cipher in cipher_vector {
 								let cipher_text = cipher.cipher_text;
 								let release_block_number = cipher.release_block_num;
@@ -291,7 +291,7 @@ impl ExtrinsicsDecoder {
 									cipher.release_block_num.to_string()
 										+ &"_".to_string() + &cipher.difficulty.to_string();
 
-								let trex_model_result = TrexModel::new(
+								let bucket_model_result = BucketModel::new(
 									hash.to_vec(),
 									number.to_owned(),
 									Option::from(cipher_text),
@@ -301,12 +301,12 @@ impl ExtrinsicsDecoder {
 									difficulty,
 									release_block_difficulty_index,
 								);
-								match trex_model_result {
-									Ok(trex_model) => {
-										trexes.push(trex_model);
+								match bucket_model_result {
+									Ok(bucket_model) => {
+										buckets.push(bucket_model);
 									}
 									Err(_) => {
-										log::debug! {"Construct trex model failed!"};
+										log::debug! {"Construct bucket model failed!"};
 									}
 								}
 							}

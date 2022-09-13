@@ -450,12 +450,12 @@ impl Insert for Vec<ExtrinsicsModel> {
 }
 
 #[async_trait::async_trait]
-impl Insert for Vec<TrexModel> {
+impl Insert for Vec<BucketModel> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
-			"trex",
+			"bucket",
 			r#"
-			INSERT INTO "trex" (
+			INSERT INTO "bucket" (
 				hash, number, cipher, account_id, app_prefix, release_block_num, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
@@ -463,28 +463,28 @@ impl Insert for Vec<TrexModel> {
 			ON CONFLICT DO NOTHING
 			"#,
 		);
-		for trex in self.into_iter() {
+		for bucket in self.into_iter() {
 			batch.reserve(6)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(trex.hash)?;
+			batch.bind(bucket.hash)?;
 			batch.append(",");
-			batch.bind(trex.number)?;
+			batch.bind(bucket.number)?;
 			batch.append(",");
-			batch.bind(trex.cipher)?;
+			batch.bind(bucket.cipher)?;
 			batch.append(",");
-			batch.bind(trex.account_id)?;
+			batch.bind(bucket.account_id)?;
 			batch.append(",");
-			batch.bind(trex.app_prefix)?;
+			batch.bind(bucket.app_prefix)?;
 			batch.append(",");
-			batch.bind(trex.release_number)?;
+			batch.bind(bucket.release_number)?;
 			batch.append(",");
-			batch.bind(trex.difficulty)?;
+			batch.bind(bucket.difficulty)?;
 			batch.append(",");
 			let release_block_difficulty_index =
-				trex.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &trex.difficulty.to_string();
+				bucket.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &bucket.difficulty.to_string();
 			batch.bind(release_block_difficulty_index)?;
 			batch.append(")");
 		}

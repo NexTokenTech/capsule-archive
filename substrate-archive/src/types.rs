@@ -18,7 +18,7 @@ use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use xtra::Message;
 
-use crate::database::TrexModel;
+use crate::database::BucketModel;
 use sp_runtime::{generic::SignedBlock, traits::Block as BlockT};
 use sp_storage::{StorageData, StorageKey};
 
@@ -171,16 +171,16 @@ impl Message for BatchExtrinsics {
 }
 
 #[derive(Debug)]
-pub struct BatchTrexes {
-	pub inner: Vec<TrexModel>,
+pub struct BatchBuckets {
+	pub inner: Vec<BucketModel>,
 }
 
-impl BatchTrexes {
-	pub fn new(trexes: Vec<TrexModel>) -> Self {
-		Self { inner: trexes }
+impl BatchBuckets {
+	pub fn new(buckets: Vec<BucketModel>) -> Self {
+		Self { inner: buckets }
 	}
 
-	pub fn inner(self) -> Vec<TrexModel> {
+	pub fn inner(self) -> Vec<BucketModel> {
 		self.inner
 	}
 
@@ -189,7 +189,7 @@ impl BatchTrexes {
 	}
 }
 
-impl Message for BatchTrexes {
+impl Message for BatchBuckets {
 	type Result = ();
 }
 

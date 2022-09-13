@@ -287,9 +287,3 @@ where
 	log::debug!("Took {:?} to insert & send finished task", now.elapsed());
 	Ok(())
 }
-
-/// Execute a block, and send it to the database actor
-#[sa_work_queue::background_job]
-pub fn execute_trex(_body: String) -> Result<(), sa_work_queue::PerformError> {
-	Ok(())
-}
