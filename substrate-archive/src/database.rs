@@ -456,7 +456,7 @@ impl Insert for Vec<BucketModel> {
 			"bucket",
 			r#"
 			INSERT INTO "bucket" (
-				hash, number, cipher, account_id, app_prefix, release_block_num, difficulty, release_block_difficulty_index
+				hash, number, cipher, account_id, app_prefix, release_number, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
 			r#"
@@ -464,7 +464,7 @@ impl Insert for Vec<BucketModel> {
 			"#,
 		);
 		for bucket in self.into_iter() {
-			batch.reserve(6)?;
+			batch.reserve(8)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
@@ -483,9 +483,7 @@ impl Insert for Vec<BucketModel> {
 			batch.append(",");
 			batch.bind(bucket.difficulty)?;
 			batch.append(",");
-			let release_block_difficulty_index =
-				bucket.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &bucket.difficulty.to_string();
-			batch.bind(release_block_difficulty_index)?;
+			batch.bind(bucket.release_block_difficulty_index)?;
 			batch.append(")");
 		}
 		Ok(batch.execute(conn).await?)

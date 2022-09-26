@@ -36,6 +36,7 @@ use crate::{
 
 use sa_work_queue::{BackgroundJob, Runner};
 use serde::Deserialize;
+use codec::{Encode,Decode};
 
 pub static TASK_QUEUE_EXT: &str = "SA_QUEUE_EXT";
 pub static EXT_JOB_TYPE: &str = "Strategy_job";
@@ -68,9 +69,9 @@ struct CipherText(Vec<u8>);
 #[derive(Deserialize, Debug)]
 struct Ciphers(Vec<Cipher>);
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug,Deserialize,Encode,Decode)]
 struct Cipher {
-	cipher_text: Vec<u8>,
+	cipher_text: String,
 	difficulty: u32,
 	release_block_num: u32,
 }
@@ -127,31 +128,31 @@ impl ExtrinsicsDecoder {
 		let upgrades = self.upgrades.load().clone();
 
 		let extrinsics_tuple =
-			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks, &upgrades))).await??;
+			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks.clone(), &upgrades))).await??;
 
 		let extrinsics = extrinsics_tuple.0;
-		if &extrinsics.len() > &0 {
-			info!("I have one or more extrinsics");
-			self.publish_exts(&extrinsics);
-		}
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
 
 		//send batch buckets to DatabaseActor
 		let buckets = extrinsics_tuple.1;
+		if &buckets.len() > &0 {
+			info!("I have one or more buckets");
+			self.publish_bkts(&buckets);
+		}
 		self.addr.send(BatchBuckets::new(buckets)).await?;
 
 		Ok(())
 	}
 
-	fn publish_exts(&self, exts: &Vec<ExtrinsicsModel>) {
+	fn publish_bkts(&self, bkts: &Vec<BucketModel>) {
 		let runner = Self::runner(self);
-		for ext in exts {
-			Self::create_job(&runner, ext);
+		for bkt in bkts {
+			Self::create_job(&runner, bkt);
 		}
 	}
 
-	fn create_job(runner: &Runner<()>, ext: &ExtrinsicsModel) {
-		let data = serde_json::to_string(ext).unwrap_or("".to_string());
+	fn create_job(runner: &Runner<()>, bkt: &BucketModel) {
+		let data = serde_json::to_string(bkt).unwrap_or("".to_string());
 		let job = BackgroundJob { job_type: EXT_JOB_TYPE.into(), data: serde_json::from_str(&*data).unwrap() };
 		let handle = runner.handle();
 		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap_or(Default::default())));
@@ -246,7 +247,7 @@ impl ExtrinsicsDecoder {
 						"Timestamp" => {
 							// TODO:Extrinsic of timestamp type to be determined,If is needed.
 						}
-						"TrexModule" => {
+						"TREXModule" => {
 							// get account_id from arguments[0]
 							let account_id_struct: Option<AccountId> =
 								serde_json::from_value(arguments[0].to_owned()).unwrap_or(None);
@@ -259,54 +260,34 @@ impl ExtrinsicsDecoder {
 							let option_cipher_text_struct: Option<CipherText> =
 								serde_json::from_value(arguments[1].to_owned()).unwrap_or(None);
 							// get json string from matching chiper_text
-							let ciphers_json_str = match option_cipher_text_struct {
-								Some(cipher_text_struct) => {
-									// fmt utf8 string to String
-									let cipher_json_str_result = String::from_utf8(cipher_text_struct.0);
-									let cipher_json_str = match cipher_json_str_result {
-										Ok(ciphers_json) => ciphers_json,
-										Err(_) => "".to_string(),
-									};
-									cipher_json_str
-								}
-								None => "".to_string(),
-							};
-							// Deserialize to Ciphers struct
-							let option_ciphers: Option<Ciphers> =
-								serde_json::from_str(&ciphers_json_str).unwrap_or(None);
-							// get Vec<Cipher> from Ciphers struct tuple's first object
-							let cipher_vector = match option_ciphers {
-								Some(ciphers_struct) => ciphers_struct.0,
-								None => {
-									vec![]
-								}
-							};
+							if let Some(cipher_encoded) = option_cipher_text_struct {
+								let cipher_decoded = Cipher::decode(&mut &cipher_encoded.0[..]);
+								if let Ok(cipher) = cipher_decoded{
+									println!("!!!!!!!!!!!!!!!!!!!{:?}",cipher);
+									let cipher_text = cipher.cipher_text.as_bytes();
+									let release_block_number = cipher.release_block_num;
+									let difficulty = cipher.difficulty;
+									let release_block_difficulty_index =
+										cipher.release_block_num.to_string()
+											+ &"_".to_string() + &cipher.difficulty.to_string();
 
-							//Traverse the vector and construct the BucketModel
-							for cipher in cipher_vector {
-								let cipher_text = cipher.cipher_text;
-								let release_block_number = cipher.release_block_num;
-								let difficulty = cipher.difficulty;
-								let release_block_difficulty_index =
-									cipher.release_block_num.to_string()
-										+ &"_".to_string() + &cipher.difficulty.to_string();
-
-								let bucket_model_result = BucketModel::new(
-									hash.to_vec(),
-									number.to_owned(),
-									Option::from(cipher_text),
-									account_id.to_owned(),
-									&pallet_name,
-									Option::from(release_block_number),
-									difficulty,
-									release_block_difficulty_index,
-								);
-								match bucket_model_result {
-									Ok(bucket_model) => {
-										buckets.push(bucket_model);
-									}
-									Err(_) => {
-										log::debug! {"Construct bucket model failed!"};
+									let bucket_model_result = BucketModel::new(
+										hash.to_vec(),
+										number.to_owned(),
+										Option::from(cipher_text.to_vec()),
+										account_id.to_owned(),
+										&pallet_name,
+										Option::from(release_block_number),
+										difficulty,
+										release_block_difficulty_index,
+									);
+									match bucket_model_result {
+										Ok(bucket_model) => {
+											buckets.push(bucket_model);
+										}
+										Err(_) => {
+											log::debug! {"Construct bucket model failed!"};
+										}
 									}
 								}
 							}
