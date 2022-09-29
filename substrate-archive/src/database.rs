@@ -450,41 +450,40 @@ impl Insert for Vec<ExtrinsicsModel> {
 }
 
 #[async_trait::async_trait]
-impl Insert for Vec<CapsuleModel> {
+impl Insert for Vec<BucketModel> {
 	async fn insert(mut self, conn: &mut DbConn) -> DbReturn {
 		let mut batch = Batch::new(
-			"capsules",
+			"bucket",
 			r#"
-			INSERT INTO "capsules" (
-				hash, number, cipher, account_id, capsule_type, release_block_num, difficulty, release_block_difficulty_index
+			INSERT INTO "bucket" (
+				hash, number, cipher, account_id, app_prefix, release_number, difficulty, release_block_difficulty_index
 			) VALUES
 			"#,
 			r#"
 			ON CONFLICT DO NOTHING
 			"#,
 		);
-		for capsule in self.into_iter() {
-			batch.reserve(6)?;
+		for bucket in self.into_iter() {
+			batch.reserve(8)?;
 			if batch.current_num_arguments() > 0 {
 				batch.append(",");
 			}
 			batch.append("(");
-			batch.bind(capsule.hash)?;
+			batch.bind(bucket.hash)?;
 			batch.append(",");
-			batch.bind(capsule.number)?;
+			batch.bind(bucket.number)?;
 			batch.append(",");
-			batch.bind(capsule.cipher)?;
+			batch.bind(bucket.cipher)?;
 			batch.append(",");
-			batch.bind(capsule.account_id)?;
+			batch.bind(bucket.account_id)?;
 			batch.append(",");
-			batch.bind(capsule.capsule_type)?;
+			batch.bind(bucket.app_prefix)?;
 			batch.append(",");
-			batch.bind(capsule.release_number)?;
+			batch.bind(bucket.release_number)?;
 			batch.append(",");
-			batch.bind(capsule.difficulty)?;
+			batch.bind(bucket.difficulty)?;
 			batch.append(",");
-			let release_block_difficulty_index = capsule.release_number.unwrap_or(0u32).to_string() + &"_".to_string() + &capsule.difficulty.to_string();
-			batch.bind(release_block_difficulty_index)?;
+			batch.bind(bucket.release_block_difficulty_index)?;
 			batch.append(")");
 		}
 		Ok(batch.execute(conn).await?)

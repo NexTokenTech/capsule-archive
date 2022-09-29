@@ -78,6 +78,7 @@ pub enum Action {
 	Delete,
 }
 
+#[derive(Clone, Copy)]
 pub enum Channel {
 	/// Listen on the blocks table for new INSERTS
 	Blocks,

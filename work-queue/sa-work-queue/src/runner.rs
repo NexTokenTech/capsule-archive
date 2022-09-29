@@ -180,7 +180,7 @@ impl QueueHandle {
 	}
 
 	/// Push to the RabbitMQ
-	pub(crate) async fn push(&self, payload: Vec<u8>) -> Result<PublisherConfirm, lapin::Error> {
+	pub async fn push(&self, payload: Vec<u8>) -> Result<PublisherConfirm, lapin::Error> {
 		let confirm = self
 			.channel
 			.basic_publish("", self.queue.name().as_str(), Default::default(), payload, Default::default())
@@ -245,13 +245,13 @@ impl<Env: Send + Sync + RefUnwindSafe + 'static> Runner<Env> {
 			let available_threads = max_threads - self.threadpool.active_count();
 			// log::debug!(
 			// 	"
-            //             pending_messages={},
-            //             available_threads={},
-            //             queue_messages={},
-            //             consumers={},
-            //             threadpool_queued={}
-            //             threadpool_active={}
-            //             ",
+			//             pending_messages={},
+			//             available_threads={},
+			//             queue_messages={},
+			//             consumers={},
+			//             threadpool_queued={}
+			//             threadpool_active={}
+			//             ",
 			// 	&pending_messages,
 			// 	&available_threads,
 			// 	self.handle().queue.message_count(),

@@ -38,6 +38,13 @@ use crate::{
 	types::*,
 };
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct BlockDigestModel{
+	pub block_num: u32,
+	pub digest: Vec<u8>,
+	pub timestamp: u128
+}
+
 /// Struct modeling data returned from database when querying for a block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct BlockModel {
@@ -141,7 +148,7 @@ impl<Hash: Copy> From<BatchStorage<Hash>> for Vec<StorageModel<Hash>> {
 	}
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ExtrinsicsModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
@@ -156,32 +163,50 @@ impl ExtrinsicsModel {
 	}
 }
 
-#[derive(Debug, Serialize, FromRow)]
-pub struct CapsuleModel {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct BucketModel {
 	pub id: Option<i32>,
 	pub hash: Vec<u8>,
 	pub number: u32,
 	pub cipher: Option<Vec<u8>>,
 	pub account_id: Option<Vec<Vec<u8>>>,
-	pub capsule_type: String,
+	pub app_prefix: String,
 	pub release_number: Option<u32>,
-	pub difficulty:u32
+	pub difficulty: u32,
+	pub release_block_difficulty_index: String,
 }
 
-impl CapsuleModel {
+impl BucketModel {
 	pub fn new(
 		block_id: Vec<u8>,
 		block_num: u32,
 		cipher: Option<Vec<u8>>,
 		account_id: Option<Vec<Vec<u8>>>,
-		capsule_type: &str,
+		app_prefix: &str,
 		release_number: Option<u32>,
-		difficulty: u32
+		difficulty: u32,
+		release_block_difficulty_index: String,
 	) -> Result<Self> {
 		let block_id = block_id.try_into().unwrap_or(vec![]);
 		let block_num = block_num.try_into().unwrap_or(0u32);
-		let capsule_type = capsule_type.to_string();
-		Ok(Self { id: None, hash: block_id, number: block_num, cipher, account_id, capsule_type, release_number, difficulty})
+		let app_prefix = app_prefix.to_string();
+		Ok(Self {
+			id: None,
+			hash: block_id,
+			number: block_num,
+			cipher,
+			account_id,
+			app_prefix,
+			release_number,
+			difficulty,
+			release_block_difficulty_index,
+		})
+	}
+}
+
+impl BucketModel {
+	pub fn into_bucket(self) -> Result<BucketModel, DecodeError> {
+		Ok(self)
 	}
 }
 
