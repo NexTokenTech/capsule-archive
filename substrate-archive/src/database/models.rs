@@ -38,6 +38,13 @@ use crate::{
 	types::*,
 };
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
+pub struct BlockDigestModel{
+	pub block_num: u32,
+	pub digest: Vec<u8>,
+	pub timestamp: u128
+}
+
 /// Struct modeling data returned from database when querying for a block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromRow)]
 pub struct BlockModel {

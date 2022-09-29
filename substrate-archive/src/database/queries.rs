@@ -50,14 +50,6 @@ struct BlockNum {
 	block_num: i32,
 }
 
-// Return type of queries that `SELECT block_num, ext`
-struct BlockExtrinsics {
-	block_num: i32,
-	hash: Vec<u8>,
-	ext: Vec<u8>,
-	spec: i32,
-}
-
 /// Return type of queries that `SELECT meta`
 struct Meta {
 	pub meta: Vec<u8>,
@@ -76,6 +68,16 @@ struct PastAndPresentVersion {
 	pub past: Option<i32>,
 	pub metadata: Vec<u8>,
 	pub past_metadata: Option<Vec<u8>>,
+}
+
+// Return type of queries that `SELECT block_num, hash, ext, spec, digest`
+#[derive(Debug, PartialEq, Eq, sqlx::FromRow,Clone)]
+struct BlockDigest{
+	block_num: i32,
+	hash: Vec<u8>,
+	ext: Vec<u8>,
+	spec: i32,
+	digest:Vec<u8>,
 }
 
 /// Get missing blocks from the relational database between numbers `min` and
@@ -234,27 +236,28 @@ pub(crate) fn blocks_paginated<'a>(
 
 /// Get up to `max_block_load` extrinsics which are not present in the `extrinsics` table.
 /// Ordered from least to greatest number.
+#[allow(dead_code)]
 pub(crate) async fn blocks_missing_extrinsics(
 	conn: &mut PgConnection,
 	max_block_load: u32,
-) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32)>> {
-	let blocks = sqlx::query_as!(
-		BlockExtrinsics,
-		"
-		SELECT block_num, hash, ext, spec FROM blocks
+) -> Result<Vec<(u32, Vec<u8>, Vec<u8>, u32, Vec<u8>)>>{
+	let query = format!(
+		"SELECT block_num, hash, ext, spec, digest FROM blocks
 		WHERE NOT EXISTS
 			(SELECT number FROM extrinsics WHERE extrinsics.number = blocks.block_num)
 		ORDER BY block_num ASC
-		LIMIT $1
-		",
-		i64::from(max_block_load)
-	)
-	.fetch_all(conn)
-	.await?
-	.into_iter()
-	.map(|b| (b.block_num as u32, b.hash, b.ext, b.spec as u32))
-	.collect();
+		LIMIT {}",
+		max_block_load
+	);
 
+	let blocks:Vec<(u32, Vec<u8>, Vec<u8>, u32, Vec<u8>)> = sqlx::query_as::<_, BlockDigest>(
+		&query
+	)
+		.fetch_all(conn)
+		.await?
+		.iter()
+		.map(|b| (b.to_owned().block_num as u32, b.to_owned().hash, b.to_owned().ext, b.to_owned().spec as u32, b.to_owned().digest))
+		.collect();
 	Ok(blocks)
 }
 

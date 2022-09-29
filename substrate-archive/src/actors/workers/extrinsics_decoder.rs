@@ -29,17 +29,19 @@ use crate::{
 		workers::database::{DatabaseActor, GetState},
 		SystemConfig,
 	},
-	database::{models::ExtrinsicsModel, models::BucketModel, queries},
+	database::{models::BucketModel, models::ExtrinsicsModel, queries},
 	error::{ArchiveError, Result},
-	types::{BatchExtrinsics, BatchBuckets},
+	types::{BatchBuckets, BatchExtrinsics},
 };
 
+use crate::database::BlockDigestModel;
+use codec::{Decode, Encode};
 use sa_work_queue::{BackgroundJob, Runner};
-use serde::Deserialize;
-use codec::{Encode,Decode};
+use serde::{Deserialize, Serialize};
 
 pub static TASK_QUEUE_EXT: &str = "SA_QUEUE_EXT";
 pub static EXT_JOB_TYPE: &str = "Strategy_job";
+pub static DIGEST_JOB_TYPE: &str = "Digest_job";
 
 /// Actor which crawls missing encoded extrinsics and
 /// sends decoded JSON to the database.
@@ -57,7 +59,7 @@ pub struct ExtrinsicsDecoder {
 	/// number -> spec
 	upgrades: ArcSwap<HashMap<u32, u32>>,
 	/// URL for RabbitMQ. Default is localhost:5672
-	task_url: String
+	task_url: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -69,7 +71,7 @@ struct CipherText(Vec<u8>);
 #[derive(Deserialize, Debug)]
 struct Ciphers(Vec<Cipher>);
 
-#[derive(Debug,Deserialize,Encode,Decode)]
+#[derive(Debug, Deserialize, Encode, Decode)]
 struct Cipher {
 	cipher_text: String,
 	difficulty: u32,
@@ -90,7 +92,7 @@ impl ExtrinsicsDecoder {
 		let mut conn = pool.acquire().await?;
 		let upgrades = ArcSwap::from_pointee(queries::upgrade_blocks_from_spec(&mut conn, 0).await?);
 		log::info!("Started extrinsic decoder");
-		Ok(Self { pool, addr, max_block_load, decoder, upgrades, task_url})
+		Ok(Self { pool, addr, max_block_load, decoder, upgrades, task_url })
 	}
 
 	async fn crawl_missing_extrinsics(&mut self) -> Result<()> {
@@ -98,7 +100,7 @@ impl ExtrinsicsDecoder {
 		let blocks = queries::blocks_missing_extrinsics(&mut conn, self.max_block_load).await?;
 
 		let versions: Vec<u32> =
-			blocks.iter().filter(|b| !self.decoder.has_version(&b.3)).map(|(_, _, _, v)| *v).unique().collect();
+			blocks.iter().filter(|b| !self.decoder.has_version(&b.3)).map(|(_, _, _, v, _)| *v).unique().collect();
 		// above and below line are separate to let immutable ref to `self.decoder` to go out of scope.
 		for version in versions.iter() {
 			let metadata = queries::metadata(&mut conn, *version as i32).await?;
@@ -120,7 +122,7 @@ impl ExtrinsicsDecoder {
 		}
 
 		if self.upgrades.load().iter().max_by(|a, b| a.1.cmp(b.1)).map(|(_, v)| v)
-			< blocks.iter().map(|&(_, _, _, v)| v).max().as_ref()
+			< blocks.iter().map(|&(_, _, _, v, _)| v).max().as_ref()
 		{
 			self.update_upgrade_blocks().await?;
 		}
@@ -128,7 +130,8 @@ impl ExtrinsicsDecoder {
 		let upgrades = self.upgrades.load().clone();
 
 		let extrinsics_tuple =
-			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks.clone(), &upgrades))).await??;
+			task::spawn_blocking(move || Ok::<_, ArchiveError>(Self::decode(&decoder, blocks.clone(), &upgrades)))
+				.await??;
 
 		let extrinsics = extrinsics_tuple.0;
 		self.addr.send(BatchExtrinsics::new(extrinsics)).await?;
@@ -136,26 +139,36 @@ impl ExtrinsicsDecoder {
 		//send batch buckets to DatabaseActor
 		let buckets = extrinsics_tuple.1;
 		if &buckets.len() > &0 {
-			info!("I have one or more buckets");
-			self.publish_bkts(&buckets);
+			dbg!("I have one or more buckets");
+			self.publish_generic::<BucketModel>(&buckets, EXT_JOB_TYPE);
 		}
 		self.addr.send(BatchBuckets::new(buckets)).await?;
+
+		//send block headers to Rabbitmq
+		let block_headers = extrinsics_tuple.2;
+		if &block_headers.len() > &0 {
+			dbg!("I have one or more blocks");
+			self.publish_generic::<BlockDigestModel>(&block_headers, DIGEST_JOB_TYPE);
+		}
 
 		Ok(())
 	}
 
-	fn publish_bkts(&self, bkts: &Vec<BucketModel>) {
+	fn publish_generic<B: Serialize>(&self, list: &Vec<B>, job_type: &str) {
 		let runner = Self::runner(self);
-		for bkt in bkts {
-			Self::create_job(&runner, bkt);
+		for item in list {
+			Self::create_generic_job::<B>(&runner, item, job_type);
 		}
 	}
 
-	fn create_job(runner: &Runner<()>, bkt: &BucketModel) {
-		let data = serde_json::to_string(bkt).unwrap_or("".to_string());
-		let job = BackgroundJob { job_type: EXT_JOB_TYPE.into(), data: serde_json::from_str(&*data).unwrap() };
+	fn create_generic_job<B: Serialize>(runner: &Runner<()>, item: &B, job_type: &str)
+	where
+		B: Serialize,
+	{
+		let data = serde_json::to_string(item).unwrap_or("".to_string());
+		let job = BackgroundJob { job_type: job_type.into(), data: serde_json::from_str(&*data).unwrap() };
 		let handle = runner.handle();
-		let _ = task::block_on(handle.push(serde_json::to_vec(&job).unwrap_or(Default::default())));
+		task::block_on(handle.push(serde_json::to_vec(&job).unwrap_or(Default::default())));
 	}
 
 	fn runner(&self) -> Runner<()> {
@@ -170,11 +183,12 @@ impl ExtrinsicsDecoder {
 
 	fn decode(
 		decoder: &Decoder,
-		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32)>,
+		blocks: Vec<(u32, Vec<u8>, Vec<u8>, u32, Vec<u8>)>,
 		upgrades: &HashMap<u32, u32>,
-	) -> Result<(Vec<ExtrinsicsModel>, Vec<BucketModel>)> {
+	) -> Result<(Vec<ExtrinsicsModel>, Vec<BucketModel>, Vec<BlockDigestModel>)> {
 		let mut extrinsics = Vec::new();
 		let mut buckets = Vec::new();
+		let mut block_headers = Vec::new();
 		if blocks.len() > 2 {
 			let first = blocks.first().expect("Checked len; qed");
 			let last = blocks.last().expect("Checked len; qed");
@@ -187,7 +201,7 @@ impl ExtrinsicsDecoder {
 				last.3
 			);
 		}
-		for (number, hash, ext, spec) in blocks.into_iter() {
+		for (number, hash, ext, spec, digest) in blocks.into_iter() {
 			if let Some(version) = upgrades.get(&number) {
 				let previous = upgrades
 					.values()
@@ -201,6 +215,7 @@ impl ExtrinsicsDecoder {
 					Ok(exts) => {
 						//construct bucket list for batch
 						Self::construct_buckets(&number, &hash, &exts, &mut buckets);
+						Self::construct_block_digest(&number, &exts, &digest, &mut block_headers);
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
@@ -219,6 +234,7 @@ impl ExtrinsicsDecoder {
 					Ok(exts) => {
 						//construct bucket list for batch
 						Self::construct_buckets(&number, &hash, &exts, &mut buckets);
+						Self::construct_block_digest(&number, &exts, &digest, &mut block_headers);
 						if let Ok(exts_model) = ExtrinsicsModel::new(hash, number, exts) {
 							extrinsics.push(exts_model);
 						}
@@ -229,7 +245,35 @@ impl ExtrinsicsDecoder {
 				}
 			}
 		}
-		Ok((extrinsics, buckets))
+		Ok((extrinsics, buckets, block_headers))
+	}
+
+	//construct brief block list for batch
+	fn construct_block_digest(number: &u32, ext: &Value, digest: &Vec<u8>, block_headers: &mut Vec<BlockDigestModel>) {
+		if ext.is_array() {
+			let extrinsics = ext.as_array().unwrap();
+			for extrinsic in extrinsics {
+				if extrinsic.is_object() {
+					//This operation will always succeed,because the type has been determined.
+					let extrinsic_map = extrinsic.as_object().unwrap();
+					//Do not exclude empty string.
+					let pallet_name = extrinsic_map["call_data"]["pallet_name"].as_str().unwrap_or("");
+					let arguments = extrinsic_map["call_data"]["arguments"].to_owned();
+					match pallet_name {
+						"Timestamp" => {
+							let timestamp: u128 = serde_json::from_value(arguments[0].to_owned()).unwrap_or(0u128);
+							let block_model =
+								BlockDigestModel { block_num: number.to_owned(), digest: digest.to_owned(), timestamp };
+							block_headers.push(block_model);
+						}
+						"TREXModule" => {}
+						_ => {
+							log::debug! {"Other type of Extrinsic!"};
+						}
+					}
+				}
+			}
+		}
 	}
 
 	//construct bucket list for batch
@@ -262,8 +306,8 @@ impl ExtrinsicsDecoder {
 							// get json string from matching chiper_text
 							if let Some(cipher_encoded) = option_cipher_text_struct {
 								let cipher_decoded = Cipher::decode(&mut &cipher_encoded.0[..]);
-								if let Ok(cipher) = cipher_decoded{
-									println!("!!!!!!!!!!!!!!!!!!!{:?}",cipher);
+								if let Ok(cipher) = cipher_decoded {
+									println!("!!!!!!!!!!!!!!!!!!!{:?}", cipher);
 									let cipher_text = cipher.cipher_text.as_bytes();
 									let release_block_number = cipher.release_block_num;
 									let difficulty = cipher.difficulty;
